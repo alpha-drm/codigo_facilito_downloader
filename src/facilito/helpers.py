@@ -1,7 +1,95 @@
 import hashlib
 import json
 import re
+import shutil
 from pathlib import Path
+
+import aiofiles
+import aiohttp
+from unidecode import unidecode
+
+from .constants import APP_NAME, DEPENDENCIES
+from .models import Bootcamp, Chapter, Course, Module, Unit
+
+
+def get_cached_course(url: str) -> Course | None:
+    """
+    Look up a cached course by URL from local JSON files under the app data directory.
+
+    Searches all subdirectories for JSON files whose "url" field matches. Used to skip
+    web scraping when a course structure was already fetched and saved.
+
+    Parameters
+    ----------
+    url : str
+        Course URL to look up.
+
+    Returns
+    -------
+    Course | None
+        The course model if a matching JSON is found, otherwise None.
+    """
+    base_dir = Path(APP_NAME)
+
+    if not base_dir.exists():
+        return None
+
+    for json_path in base_dir.glob("*/*.json"):
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+                if data.get("url") == url:
+                    chapters = []
+                    for cap_data in data.get("chapters", []):
+                        units = [Unit(**u) for u in cap_data.get("units", [])]
+                        cap_dict = {k: v for k, v in cap_data.items() if k != "units"}
+                        chapters.append(Chapter(**cap_dict, units=units))
+
+                    course_dict = {k: v for k, v in data.items() if k != "chapters"}
+                    return Course(**course_dict, chapters=chapters)
+        except Exception:
+            continue
+
+    return None
+
+
+def get_cached_bootcamp(url: str) -> Bootcamp | None:
+    """
+    Look up a cached bootcamp by URL from local JSON files under the app data directory.
+
+    Searches subdirectories for JSON files whose "url" field matches. Used to skip
+    web scraping when a bootcamp structure was already fetched and saved.
+
+    Parameters
+    ----------
+    url : str
+        Bootcamp URL to look up.
+
+    Returns
+    -------
+    Bootcamp | None
+        The bootcamp model if a matching JSON is found, otherwise None.
+    """
+    base_dir = Path(APP_NAME)
+    if not base_dir.exists():
+        return None
+    for json_path in base_dir.glob("*/*.json"):
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data.get("url") != url:
+                    continue
+                modules = []
+                for mod_data in data.get("modules", []):
+                    units = [Unit(**u) for u in mod_data.get("units", [])]
+                    mod_dict = {k: v for k, v in mod_data.items() if k != "units"}
+                    modules.append(Module(**mod_dict, units=units))
+                bootcamp_dict = {k: v for k, v in data.items() if k != "modules"}
+                return Bootcamp(**bootcamp_dict, modules=modules)
+        except Exception:
+            continue
+    return None
 
 
 def read_json(path: str | Path) -> dict:
@@ -30,7 +118,7 @@ def write_json(path: str | Path, data: dict) -> None:
 
     Example
     -------
-    >>> write_json({"key": "value"}, "data.json")
+    >>> write_json("data.json", {"key": "value"})
     """
     with open(path, "w", encoding="utf-8") as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
@@ -47,9 +135,19 @@ def clean_string(text: str) -> str:
     -------
     >>> clean_string("   Hi:;<>?{}|"")
     "Hi"
+    >>> clean_string("Mi*archivo??.mp4")
+    "Miarchivo.mp4"
+    >>> clean_string(" Carpeta de prueba... ")
+    "Carpeta de prueba"
     """
-    pattern = r"[ºª]|[^\w\s]"
-    return re.sub(pattern, "", text).strip()
+
+    invalid_chars = r'[<>:"/\\|?*\x00-\x1F]'
+    text = re.sub(invalid_chars, "", text)
+    text = re.sub(r"\s+", " ", text)
+    text = text.rstrip(".")
+
+    # Quitar espacios al inicio y al final
+    return text.strip()
 
 
 def slugify(text: str) -> str:
@@ -65,8 +163,6 @@ def slugify(text: str) -> str:
     >>> slugify(""Café! Frío?"")
     "cafe-frio"
     """
-    from unidecode import unidecode
-
     return unidecode(clean_string(text)).lower().replace(" ", "-")
 
 
@@ -86,7 +182,7 @@ def hashify(input: str) -> str:
     return hash_object.hexdigest()
 
 
-async def download_file(url: str, path: Path | str, overwrite: bool = False):
+async def download_file(url: str, path: Path | str, overwrite: bool = False) -> None:
     """
     Download a file from a URL and save it to a path.
 
@@ -102,9 +198,6 @@ async def download_file(url: str, path: Path | str, overwrite: bool = False):
     -------
     >>> await download_file("https://example.com/file.txt", "file.txt")
     """
-    import aiofiles  # type: ignore
-    import aiohttp
-
     path = Path(path) if isinstance(path, str) else path
 
     if not overwrite and path.exists():
@@ -124,3 +217,18 @@ async def download_file(url: str, path: Path | str, overwrite: bool = False):
             raise Exception(f"Error saving to {path}")
         except Exception:
             raise Exception(f"Something went wrong downloading {url}")
+
+
+def check_dependencies() -> None:
+    """Ensure required external commands (e.g. yt-dlp, ffmpeg) are available on PATH."""
+    missing = [cmd for cmd in DEPENDENCIES if not shutil.which(cmd)]
+
+    if missing:
+        lines = ["Missing required dependencies:\n"]
+
+        for dep in missing:
+            lines.append(f"- {dep}: {DEPENDENCIES[dep]}")
+
+        lines.append("\nPlease install them and ensure they are in your PATH.")
+
+        raise RuntimeError("\n".join(lines))

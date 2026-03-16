@@ -14,5 +14,10 @@ VIDEO_M3U8_URL = (
     VIDEO_BASE_URL + "/hls" + "/{course_id}" + "/{video_id}" + "/playlist.m3u8"
 )
 
+DEPENDENCIES = {
+    "yt-dlp": "https://github.com/yt-dlp/yt-dlp/releases",
+    "ffmpeg": "https://ffmpeg.org/download.html",
+}
+
 # --- Session directory ---
 SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
