@@ -2,11 +2,14 @@ from pathlib import Path
 
 from playwright.async_api import BrowserContext, Page, async_playwright
 from playwright_stealth import Stealth
+from rich.align import Align
+from rich.console import Console
+from rich.panel import Panel
 
 from . import collectors
 from .constants import BASE_URL, LOGIN_URL, SESSION_FILE
 from .errors import LoginError
-from .helpers import read_json
+from .helpers import get_cached_bootcamp, get_cached_course, read_json
 from .logger import logger
 from .utils import (
     load_state,
@@ -18,11 +21,34 @@ from .utils import (
 
 
 class AsyncFacilito:
-    def __init__(self, headless=False):
+    """
+    Async client to interact with Codigo Facilito.
+
+    Use as a context manager to manage browser lifecycle. After entering the context,
+    call login() (or set_cookies()) to authenticate, then use fetch_* and download()
+    as needed.
+
+    Example
+    -------
+    >>> async with AsyncFacilito(headless=False) as client:
+    ...     await client.login()
+    ...     course = await client.fetch_course("https://codigofacilito.com/cursos/...")
+    ...     await client.download("https://codigofacilito.com/cursos/...")
+    """
+
+    def __init__(self, headless: bool = False) -> None:
+        """
+        Initialize the client.
+
+        Parameters
+        ----------
+        headless : bool, optional
+            If True, run the browser in headless mode. Default is False.
+        """
         self.headless = headless
         self.authenticated = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "AsyncFacilito":
         self._playwright = await async_playwright().start()
         self._browser = await self._playwright.chromium.launch(headless=self.headless)
         self._context = await self._browser.new_context(
@@ -40,21 +66,26 @@ class AsyncFacilito:
 
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(
+        self, exc_type: type | None, exc: BaseException | None, tb: object
+    ) -> None:
+        """Close browser and release resources."""
         await self._context.close()
         await self._browser.close()
         await self._playwright.stop()
 
     @property
     def context(self) -> BrowserContext:
+        """Playwright browser context (e.g. for passing to collectors/downloaders)."""
         return self._context
 
     @property
     async def page(self) -> Page:
+        """Create and return a new browser page."""
         return await self._context.new_page()
 
     @try_except_request
-    async def login(self):
+    async def login(self) -> None:
         logger.info("Please login, in the opened browser")
         logger.info("You have to login manually, you have 2 minutes to do it")
 
@@ -83,33 +114,46 @@ class AsyncFacilito:
             await page.close()
 
     @try_except_request
-    async def logout(self):
+    async def logout(self) -> None:
+        """Remove saved session (cookies) from disk. Does not require prior login."""
         SESSION_FILE.unlink(missing_ok=True)
         logger.info("Logged out successfully")
 
     @try_except_request
     @login_required
     async def fetch_unit(self, url: str):
+        """Fetch a single unit (video, lecture, or quiz) metadata from its URL."""
         return await collectors.fetch_unit(self.context, url)
 
     @try_except_request
     @login_required
     async def fetch_course(self, url: str):
+        """Fetch course structure (chapters and units) from a course URL."""
         return await collectors.fetch_course(self.context, url)
 
     @try_except_request
     @login_required
     async def fetch_bootcamp(self, url: str):
+        """Fetch bootcamp structure (modules and units) from a bootcamp URL."""
         return await collectors.fetch_bootcamp(self.context, url)
 
     @try_except_request
     @login_required
-    async def download(self, url: str, **kwargs):
+    async def download(self, url: str, **kwargs) -> None:
+        """
+        Download content from a URL (video, lecture, course, or bootcamp).
+
+        For courses and bootcamps, uses cached JSON when available to skip web scraping.
+        Pass-through kwargs are forwarded to the underlying downloaders (e.g. quality,
+        override, threads).
+        """
         from pathlib import Path
 
         from .downloaders import download_bootcamp, download_course, download_unit
         from .models import TypeUnit
         from .utils import is_bootcamp, is_course, is_lecture, is_quiz, is_video
+
+        console = Console()
 
         if is_video(url) or is_lecture(url) or is_quiz(url):
             unit = await self.fetch_unit(url)
@@ -117,16 +161,34 @@ class AsyncFacilito:
             await download_unit(
                 self.context,
                 unit,
-                Path(unit.slug + extension),
+                Path(unit.name + extension),
                 **kwargs,
             )
 
         elif is_course(url):
-            course = await self.fetch_course(url)
+            console.print(f"\n[cyan]>>> Checking local cache for:[/] {url}")
+            course = get_cached_course(url)
+
+            if course:
+                console.print("[green]>>> Cache hit. Skipping web scraping.[/]\n")
+            else:
+                console.print(
+                    "[yellow]>>> No local cache. Fetching structure from web...[/]\n"
+                )
+                course = await self.fetch_course(url)
+
             await download_course(self.context, course, **kwargs)
 
         elif is_bootcamp(url):
-            bootcamp = await self.fetch_bootcamp(url)
+            console.print(f"\n[cyan]>>> Checking local cache for:[/] {url}")
+            bootcamp = get_cached_bootcamp(url)
+            if bootcamp:
+                console.print("[green]>>> Cache hit. Skipping web scraping.[/]\n")
+            else:
+                console.print(
+                    "[yellow]>>> No local cache. Fetching structure from web...[/]\n"
+                )
+                bootcamp = await self.fetch_bootcamp(url)
             await download_bootcamp(self.context, bootcamp, **kwargs)
 
         else:
@@ -136,14 +198,26 @@ class AsyncFacilito:
             )
 
     @try_except_request
-    async def set_cookies(self, path: Path):
+    async def set_cookies(self, path: Path) -> None:
+        """
+        Load cookies from a JSON file and set them in the browser context.
+
+        Marks the client as authenticated if the cookies are valid. Saves state to disk.
+
+        Parameters
+        ----------
+        path : Path
+            Path to a JSON file containing cookies (e.g. exported from browser).
+        """
         cookies = normalize_cookies(read_json(path))  # type: ignore
         await self.context.add_cookies(cookies)  # type: ignore
         await self._set_profile()
         await save_state(self.context, SESSION_FILE)
 
     @try_except_request
-    async def _set_profile(self):
+    async def _set_profile(self) -> None:
+        """Check if the current context is authenticated by loading the home page and
+        detecting the welcome message."""
         SELECTOR = "h1.h1.f-text-34"
         TIMEOUT = 5 * 1000
 
@@ -157,10 +231,15 @@ class AsyncFacilito:
 
             if welcome_message:
                 self.authenticated = True
-                logger.info(welcome_message)
+                console = Console()
 
-        except Exception:
-            pass
+                panel = Panel.fit(
+                    welcome_message,
+                    border_style="cyan",
+                    style="green",
+                )
+                console.print(Align.center(panel))
+                print()
 
-        finally:
-            await page.close()
+        except Exception as e:
+            logger.error(e)
