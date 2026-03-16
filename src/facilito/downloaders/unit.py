@@ -8,17 +8,31 @@ from ..utils import save_page
 from .video import download_video
 
 
-async def download_unit(context: BrowserContext, unit: Unit, path: Path, **kwargs):
+async def download_unit(
+    context: BrowserContext, unit: Unit, path: Path, **kwargs
+) -> None:
     """
-    Download a Unit.
+    Download a single unit: video (via yt-dlp) or lecture/quiz page (as MHTML).
 
-    :param BrowserContext context: Playwright context.
-    :param Unit unit: Unit model to download.
-    :param Path path: Path to save the video.
+    Parameters
+    ----------
+    context : BrowserContext
+        Playwright browser context (cookies for video, page capture for MHTML).
+    unit : Unit
+        Unit model with type, url, name.
+    path : Path
+        Output path (e.g. .mp4 for video, .mhtml for lecture/quiz).
 
-    :param Quality quality: Quality of the video (default: Quality.MAX).
-    :param bool override: Override existing file if exists (default: False).
-    :param int threads: Number of threads to use (default: 10).
+    Other Parameters
+    ----------------
+    quality : Quality, optional
+        Video quality. Default from caller.
+    override : bool, optional
+        Overwrite existing file. Default False.
+    threads : int, optional
+        Concurrent fragments for video. Default 10.
+    progress_str : str, optional
+        Prefix string for progress display (e.g. "3/10").
     """
 
     if unit.type == TypeUnit.VIDEO:
