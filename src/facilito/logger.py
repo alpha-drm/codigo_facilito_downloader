@@ -3,9 +3,11 @@ import logging
 import colorlog
 
 
-# --- Custom Console Handler ---
 class CustomConsoleHandler(colorlog.StreamHandler):
-    def emit(self, record):
+    """Console handler that strips exc_info from records so tracebacks
+    are not duplicated in console."""
+
+    def emit(self, record: logging.LogRecord) -> None:
         # clone the record to avoid modifying the original
         record_copy = logging.makeLogRecord(record.__dict__)
         # remove exc_info from the copy
