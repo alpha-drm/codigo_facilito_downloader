@@ -6,13 +6,21 @@ from typing_extensions import Annotated
 
 from facilito import AsyncFacilito, Quality
 
+from .helpers import check_dependencies
+from .utils import banner
+
 app = typer.Typer(rich_markup_mode="rich")
 
 
+@app.callback()
+def main():
+    banner()
+
+
 @app.command()
-def login():
+def login() -> None:
     """
-    Open a browser window to Login to Codigo Facilito.
+    Open a browser window to log in to Codigo Facilito.
 
     Usage:
         facilito login
@@ -70,7 +78,7 @@ def download(
             help="The quality of the video to download.",
             show_default=True,
         ),
-    ] = Quality.MAX,
+    ] = Quality.P1080,
     override: Annotated[
         bool,
         typer.Option(
@@ -110,6 +118,13 @@ def download(
 
         facilito download https://codigofacilito.com/articulos/...
     """
+
+    try:
+        check_dependencies()
+    except RuntimeError as e:
+        typer.secho(str(e), fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
     asyncio.run(
         _download(
             url,
@@ -120,21 +135,25 @@ def download(
     )
 
 
-async def _login():
+async def _login() -> None:
+    """Run login flow inside an AsyncFacilito context."""
     async with AsyncFacilito() as client:
         await client.login()
 
 
-async def _logout():
+async def _logout() -> None:
+    """Run logout (delete session) inside an AsyncFacilito context."""
     async with AsyncFacilito() as client:
         await client.logout()
 
 
-async def _download(url: str, **kwargs):
+async def _download(url: str, **kwargs) -> None:
+    """Run download for the given URL inside an AsyncFacilito context."""
     async with AsyncFacilito() as client:
         await client.download(url, **kwargs)
 
 
-async def _set_cookies(path: Path):
+async def _set_cookies(path: Path) -> None:
+    """Load cookies from file and save state inside an AsyncFacilito context."""
     async with AsyncFacilito() as client:
         await client.set_cookies(path)
