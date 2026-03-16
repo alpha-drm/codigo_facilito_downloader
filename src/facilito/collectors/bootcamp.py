@@ -1,204 +1,231 @@
-import asyncio
+from urllib.parse import urljoin
 
 from playwright.async_api import BrowserContext, Page
 
 from ..constants import BASE_URL
 from ..errors import CourseError, UnitError
-from ..helpers import slugify
+from ..helpers import clean_string, slugify
+from ..logger import logger
 from ..models import Bootcamp, Module, Unit
 from ..utils import get_unit_type
+
+# =========================
+# Selectors - Bootcamp Page
+# =========================
+
+ACCORDION_SELECTOR = "ul.collapsible.f-topics li.f-radius-small"
+ACCORDION_HEADER_SELECTOR = "header.collapsible-header"
+ACCORDION_MODULE_NAME_SELECTOR = ".collapsible-header span.f-green-text"
+
+# =========================
+# Selectors - Course Page
+# =========================
+
+CHAPTERS_SELECTOR = "ul.f-topics > div.f-top-16"
+LESSONS_LINKS_SELECTOR = ".collapsible-body ul a, div.topics-li ul > a"
+LESSON_NAME_SELECTOR = "p.ibm"
+
+# ==========================================================
+# Extract lessons from a course page
+# ==========================================================
+
+
+async def _extract_units_from_course(page: Page, url: str) -> list[Unit]:
+    """
+    Open a course page and extract all lesson units.
+    """
+    units: list[Unit] = []
+
+    try:
+        await page.goto(url, wait_until="domcontentloaded")
+
+        accordions = page.locator(CHAPTERS_SELECTOR)
+        accordion_count = await accordions.count()
+
+        for i in range(accordion_count):
+            chapter = accordions.nth(i)
+
+            header = chapter.locator(ACCORDION_HEADER_SELECTOR).first
+            expanded = await header.get_attribute("aria-expanded")
+
+            # Expand if collapsed
+            if expanded != "true":
+                await header.click()
+                await page.wait_for_timeout(1500)
+
+        lessons = page.locator(LESSONS_LINKS_SELECTOR)
+        lessons_count = await lessons.count()
+
+        for i in range(lessons_count):
+            lesson = lessons.nth(i)
+
+            title_locator = lesson.locator(LESSON_NAME_SELECTOR).first
+            name = await title_locator.text_content()
+            href = await lesson.get_attribute("href")
+
+            if not name or not href:
+                continue
+
+            final_url = urljoin(BASE_URL, href)
+
+            units.append(
+                Unit(
+                    type=get_unit_type(final_url),
+                    name=clean_string(name),
+                    slug=slugify(name),
+                    url=final_url,
+                )
+            )
+
+    except Exception as e:
+        logger.warning("Error extracting units from %s: %s", url, e)
+        return []
+
+    return units
+
+
+# ==========================================================
+# Extract modules (grouped by accordion)
+# ==========================================================
 
 
 async def _fetch_bootcamp_modules(page: Page) -> list[Module]:
     """
-    Fetch all modules from a bootcamp page.
+    Extract modules grouped by accordion.
 
-    Bootcamp structure:
-    - Each module is collapsible section (Módulo 1, Módulo 2, etc.)
-    - Each module contains multiple classes/units
-    - Units can be videos, lectures, or quizzes
+    Each accordion becomes ONE Module.
+    All intermediate links inside the accordion
+    contribute units to that same module.
     """
-    # Updated selectors for bootcamp structure
-    MODULES_SELECTOR = "ul.collapsible.f-topics li.f-radius-small"
+    accordions = page.locator(ACCORDION_SELECTOR)
+    accordion_count = await accordions.count()
+
+    if not accordion_count:
+        raise UnitError("No accordion modules found.")
+
+    modules: list[Module] = []
+
+    temp_page = await page.context.new_page()
 
     try:
-        modules_selectors = page.locator(MODULES_SELECTOR)
-        modules_count = await modules_selectors.count()
+        for i in range(accordion_count):
+            accordion = accordions.nth(i)
 
-        if not modules_count:
-            raise CourseError("No modules found in bootcamp")
+            header = accordion.locator(ACCORDION_HEADER_SELECTOR).first
+            expanded = await header.get_attribute("aria-expanded")
 
-        # Expand all modules to access their content
-        for i in range(modules_count):
-            CHEVRON_SELECTOR = ".collapsible-header"
-            try:
-                chevron = modules_selectors.nth(i).locator(CHEVRON_SELECTOR).first
-                # Check if module is already expanded
-                is_active = await modules_selectors.nth(i).get_attribute("class")
-                if is_active and "active" not in is_active:
-                    await chevron.click()
-            except Exception:
-                # Some modules might already be expanded or not clickable
-                pass
+            # Expand if collapsed
+            if expanded != "true":
+                await header.click()
+                await page.wait_for_timeout(1500)
 
-        # Wait for content to load
-        await asyncio.sleep(2)
-
-        modules: list[Module] = []
-        for i in range(modules_count):
-            # Module name is in the header with class "f-green-text--2"
-            MODULE_NAME_SELECTOR = ".collapsible-header span.f-green-text"
-            UNITS_SELECTOR = ".collapsible-body ul a"
-
-            # Get module name
-            module_name_elem = (
-                modules_selectors.nth(i).locator(MODULE_NAME_SELECTOR).first
-            )
-            module_name = await module_name_elem.text_content()
-
-            if not module_name:
-                # Try alternative selector
-                MODULE_NAME_ALT_SELECTOR = ".collapsible-header h4"
-                module_name = (
-                    await modules_selectors.nth(i)
-                    .locator(MODULE_NAME_ALT_SELECTOR)
-                    .first.text_content()
-                )
-                if not module_name:
-                    raise CourseError(
-                        f"Could not extract module name for module {i + 1}"
-                    )
+            # Extract accordion name (THIS is folder name)
+            module_name = await accordion.locator(
+                ACCORDION_MODULE_NAME_SELECTOR
+            ).first.text_content()
 
             # Clean module name: remove newlines, extra spaces, and tabs
             module_name = " ".join(module_name.strip().split())
 
-            # Get all units in this module
-            units_locators = modules_selectors.nth(i).locator(UNITS_SELECTOR)
-            units_count = await units_locators.count()
-
-            if not units_count:
-                # Module might be empty, skip it
+            if not module_name:
                 continue
 
-            units: list[Unit] = []
-            for j in range(units_count):
-                # Unit name is in nested p tags with class "ibm"
-                UNIT_NAME_SELECTOR = "p.ibm.f-text-16"
+            # Extract intermediate links
+            links_locator = accordion.locator(LESSONS_LINKS_SELECTOR)
+            links = await links_locator.all()
 
-                unit_name = (
-                    await units_locators.nth(j)
-                    .locator(UNIT_NAME_SELECTOR)
-                    .first.text_content()
-                )
-                unit_url = await units_locators.nth(j).first.get_attribute("href")
+            if not links:
+                continue
 
-                if not unit_name or not unit_url:
-                    # Skip invalid units
+            module_units: list[Unit] = []
+
+            for link in links:
+                href = await link.get_attribute("href")
+                if not href:
                     continue
 
-                # Clean unit name: remove newlines, extra spaces, and tabs
-                unit_name = " ".join(unit_name.strip().split())
+                full_url = urljoin(BASE_URL, href)
 
-                # Build full URL
-                full_url = BASE_URL + unit_url
-
-                # For bootcamp lessons, we need to follow the redirect
-                # to get the actual video URL
-                # The URLs like /cursos/bootcamp-...?play=true redirect
-                # to /videos/...
-                # We'll detect the type after getting the final URL
                 try:
-                    # Open page and wait for navigation to complete
-                    # We only need domcontentloaded, not networkidle,
-                    # to get video metadata
-                    temp_page = await page.context.new_page()
-                    await temp_page.goto(full_url, wait_until="domcontentloaded")
-                    # Get final URL after redirects
-                    final_url = temp_page.url
-                    await temp_page.close()
-
-                    # Now determine the type based on final URL
-                    unit_type = get_unit_type(final_url)
-
-                    units.append(
-                        Unit(
-                            type=unit_type,
-                            name=unit_name,
-                            slug=slugify(unit_name),
-                            url=final_url,
-                        )
+                    # Accumulate units into SAME module
+                    units = await _extract_units_from_course(
+                        temp_page,
+                        full_url,
                     )
-                except Exception:
-                    # If redirect fails, skip this unit
-                    try:
-                        await temp_page.close()
-                    except Exception:
-                        pass
-                    continue
+                    module_units.extend(units)
 
-            if units:  # Only add module if it has valid units
-                modules.append(
-                    Module(
-                        name=module_name,
-                        slug=slugify(module_name),
-                        units=units,
-                    )
+                except Exception as e:
+                    logger.warning("Failed extracting units from %s: %s", full_url, e)
+
+            if not module_units:
+                continue
+
+            modules.append(
+                Module(
+                    name=module_name,
+                    slug=slugify(module_name),
+                    units=module_units,
                 )
+            )
 
-    except Exception as e:
-        raise UnitError(f"Error fetching bootcamp modules: {str(e)}")
+    finally:
+        await temp_page.close()
 
     return modules
 
 
+# ==========================================================
+# Public API
+# ==========================================================
+
+
 async def fetch_bootcamp(context: BrowserContext, url: str) -> Bootcamp:
     """
-    Fetch all information from a bootcamp.
+    Fetch bootcamp metadata and structure (modules and units) from a bootcamp URL.
 
-    Args:
-        context: Playwright browser context
-        url: URL of the bootcamp (e.g., https://codigofacilito.com/programas/ingles-conversacional)
+    Parameters
+    ----------
+    context : BrowserContext
+        Playwright browser context (must be authenticated).
+    url : str
+        Full URL of the bootcamp (program) page.
 
-    Returns:
-        Bootcamp model with all modules and units
+    Returns
+    -------
+    Bootcamp
+        Bootcamp model with name, slug, url, and modules (each with units).
 
-    Raises:
-        CourseError: If bootcamp information cannot be extracted
+    Raises
+    ------
+    CourseError
+        If the page cannot be loaded, name cannot be extracted, or no modules are found.
     """
-    # Selector for bootcamp title (similar to course)
-    NAME_SELECTOR = ".f-course-presentation h1, .cover-with-image h1, h1.h1"
+    page: Page | None = None
 
     try:
         page = await context.new_page()
-        await page.goto(url)
+        await page.goto(url, wait_until="domcontentloaded")
 
-        # Wait for page to load
-        await asyncio.sleep(1)
+        bootcamp_name = await page.locator("h1").first.text_content()
 
-        # Get bootcamp name
-        name = await page.locator(NAME_SELECTOR).first.text_content()
+        if not bootcamp_name:
+            raise CourseError("Unable to extract bootcamp name.")
 
-        if not name:
-            raise CourseError("Could not extract bootcamp name")
-
-        # Clean bootcamp name: remove newlines, extra spaces, and tabs
-        name = " ".join(name.strip().split())
-
-        # Fetch all modules
         modules = await _fetch_bootcamp_modules(page)
 
         if not modules:
-            raise CourseError("No modules found in bootcamp")
+            raise CourseError("Bootcamp contains no modules.")
 
     except Exception as e:
         raise CourseError(f"Error fetching bootcamp: {str(e)}")
 
     finally:
-        await page.close()
+        if page is not None:
+            await page.close()
 
     return Bootcamp(
-        name=name,
-        slug=slugify(name),
+        name=clean_string(bootcamp_name),
+        slug=slugify(bootcamp_name),
         url=url,
         modules=modules,
     )

@@ -1,12 +1,32 @@
 from playwright.async_api import BrowserContext
 
 from ..errors import UnitError
-from ..helpers import slugify
+from ..helpers import clean_string, slugify
 from ..models import TypeUnit, Unit
 from ..utils import get_unit_type
 
 
-async def fetch_unit(context: BrowserContext, url: str):
+async def fetch_unit(context: BrowserContext, url: str) -> Unit:
+    """
+    Fetch unit metadata (name, type, slug, url) from a unit URL.
+
+    Parameters
+    ----------
+    context : BrowserContext
+        Playwright browser context (must be authenticated).
+    url : str
+        Full URL of the unit (video, lecture, or quiz).
+
+    Returns
+    -------
+    Unit
+        Unit model with type, name, slug, url. Quizzes return a placeholder unit.
+
+    Raises
+    ------
+    UnitError
+        If the page cannot be loaded or the unit type is not recognized.
+    """
     NAME_SELECTOR = ".title-section header h1"
 
     try:
@@ -23,9 +43,10 @@ async def fetch_unit(context: BrowserContext, url: str):
     except Exception:
         raise UnitError()
 
+    page = None
     try:
         page = await context.new_page()
-        await page.goto(url)
+        await page.goto(url, wait_until="domcontentloaded")
 
         name = await page.locator(NAME_SELECTOR).first.text_content()
 
@@ -38,11 +59,12 @@ async def fetch_unit(context: BrowserContext, url: str):
         raise UnitError()
 
     finally:
-        await page.close()
+        if page is not None:
+            await page.close()
 
     return Unit(
         type=type,
-        name=name,
+        name=clean_string(name),
         url=url,
         slug=slugify(name),
     )

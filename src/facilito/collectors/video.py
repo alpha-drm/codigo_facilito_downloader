@@ -2,44 +2,52 @@ import re
 
 from playwright.async_api import BrowserContext
 
-from ..constants import VIDEO_BASE_URL, VIDEO_M3U8_URL
 from ..errors import VideoError
 from ..models import Video
 from ..utils import is_video
 
 
 async def fetch_video(context: BrowserContext, url: str) -> Video:
-    VIDEO_ID_SELECTOR = "input[name='video_id']"
-    COURSE_ID_SELECTOR = "input[name='course_id']"
-    M3U8_PATTERN = r"\/hls\/.*?\.m3u8"
+    """
+    Fetch the M3U8 stream URL from a video page (used by the video downloader).
+
+    Parameters
+    ----------
+    context : BrowserContext
+        Playwright browser context.
+    url : str
+        Full URL of the video page.
+
+    Returns
+    -------
+    Video
+        Video model with the extracted stream URL.
+
+    Raises
+    ------
+    VideoError
+        If the URL is not a video page or videoUrl cannot be found in the page.
+    """
+    M3U8_PATTERN = r'videoUrl\s*=\s*"([^"]+)"'
 
     if not is_video(url):
         raise VideoError()
 
+    page = await context.new_page()
+
     try:
-        page = await context.new_page()
-        await page.goto(url)
+        await page.goto(url, wait_until="domcontentloaded")
 
-        if m3u8_urls := re.findall(M3U8_PATTERN, await page.content()):
-            url = VIDEO_BASE_URL + m3u8_urls[0]
+        html = await page.content()
+        m3u8_urls = re.findall(M3U8_PATTERN, html)
 
-        else:
-            course_id = await page.locator(COURSE_ID_SELECTOR).first.get_attribute(
-                "value"
-            )
-            video_id = await page.locator(VIDEO_ID_SELECTOR).first.get_attribute(
-                "value"
-            )
+        if not m3u8_urls:
+            raise VideoError("videoUrl not found in page")
 
-            if not video_id or not course_id:
-                raise VideoError()
+        return Video(url=m3u8_urls[0])
 
-            url = VIDEO_M3U8_URL.format(course_id=course_id, video_id=video_id)
-
-    except Exception:
-        raise VideoError()
+    except Exception as e:
+        raise VideoError() from e
 
     finally:
         await page.close()
-
-    return Video(url=url)
