@@ -4,12 +4,12 @@ from pydantic import BaseModel
 
 
 class Quality(str, Enum):
-    MAX = "max"
-    P1080 = "1080p"
-    P720 = "720p"
-    P480 = "480p"
-    P360 = "360p"
-    MIN = "min"
+    BEST = "best"
+    P1080 = "1080"
+    P720 = "720"
+    P480 = "480"
+    P360 = "360"
+    WORST = "worst"
 
 
 class TypeUnit(str, Enum):
