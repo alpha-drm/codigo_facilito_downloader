@@ -27,14 +27,17 @@ con un script creado con **_`Python`_** y **_`Playwright`_**.
 
 ---
 
-![coco-demo](https://github.com/ivansaul/codigo_facilito_downloader/assets/15005581/b3029dda-c5ab-4cd9-97d3-acc61f3be3a0)
+![coco-banner](https://github.com/user-attachments/assets/7c85e908-fd19-4db9-b57c-55c56d183335)
+
+> [!NOTE]  
+> La versión actual incluye una experiencia de CLI mejorada con barras de progreso, paneles y tablas usando **Rich**.
 
 ## TODO
 
 ¡Contribuciones son bienvenidas!
 
 - [ ] Improve documentation
-- [ ] Implement custom progress bar
+- [x] Implement rich progress bar for downloads
 - [ ] Improve error handling
 - [ ] Write tests
 
@@ -75,7 +78,7 @@ con un script creado con **_`Python`_** y **_`Playwright`_**.
 5. Instala las dependencias de `playwright`:
 
    ```console
-   playwright install chromium
+   poetry run playwright install chromium
    ```
 
 ## Actualización
@@ -102,7 +105,7 @@ con un script creado con **_`Python`_** y **_`Playwright`_**.
 4. Actualiza las dependencias de `playwright`:
 
    ```console
-   playwright install chromium
+   poetry run playwright install chromium
    ```
 
 </details>
@@ -135,7 +138,18 @@ con un script creado con **_`Python`_** y **_`Playwright`_**.
 
 <summary>Tips & Tricks</summary>
 
-## FFmpeg Instalación
+## Dependencias del sistema (requeridas)
+
+Este proyecto usa herramientas externas para descargar y procesar video:
+
+- **`yt-dlp`**: descarga del stream y unión de fragmentos.
+- **`ffmpeg`**: escritura de metadata en el `.mp4` (y utilidades de contenedor).
+
+> [!IMPORTANT]
+> Asegúrate de que **`yt-dlp`** y **`ffmpeg`** estén instalados y disponibles en tu `PATH`.
+> El comando `facilito download ...` valida esto antes de iniciar la descarga.
+
+### FFmpeg Instalación
 
 ### Ubuntu / Debian
 
@@ -157,6 +171,32 @@ Puedes descargar la versión de `ffmpeg` para Windows desde [aquí][ffmpeg]. o a
 scoop install ffmpeg
 ```
 
+### yt-dlp Instalación
+
+La forma más sencilla y aislada suele ser usar el **binario oficial** o un gestor de paquetes del sistema:
+
+#### Windows (Scoop)
+
+```console
+scoop install yt-dlp
+```
+
+#### Windows (Chocolatey)
+
+```console
+choco install yt-dlp
+```
+
+#### Linux / macOS (pipx / pip)
+
+```console
+pipx install yt-dlp
+# o, si no usas pipx:
+pip install -U yt-dlp
+```
+
+Mientras el comando `yt-dlp` esté disponible en tu `PATH`, el downloader podrá usarlo sin problemas.
+
 </details>
 
 ## Guía de uso
@@ -167,7 +207,7 @@ El `CLI` proporciona los siguientes comandos:
 
 Puedes iniciar sesión de dos formas:
 
-#### Email | Facebook | Google
+#### Email | Google
 
 ```console
 facilito login
@@ -187,10 +227,10 @@ facilito set-cookies path/to/cookies.json
 
 ## Exportar las cookies
 
-1. Instala la extensión de Chrome [**_`GetCookies`_**][cookies-extension].
-2. Inicia sesión en Código Facilito utilizando el navegador Chrome.
+1. Instala alguna extensión como **_`GetCookies`_** o **_`Cookie-Editor`_**
+2. Inicia sesión en tu navegador de tu preferencia.
 3. Recarga la página.
-4. Exporta las cookies en formato `json` desde la extensión de Chrome.
+4. Exporta las cookies en formato `json` desde la extensión.
 
 </details>
 
@@ -204,7 +244,7 @@ facilito logout
 
 ### Descargar
 
-Descarga un bootcamp, curso, video o lección de Código Facilito.
+Descarga un **curso** o **bootcamp** completo.
 
 ```console
 facilito download <url> [OPCIONES]
@@ -212,7 +252,7 @@ facilito download <url> [OPCIONES]
 
 Opciones:
 
-- `--quality`, `-q`: Especifica la calidad del video (por defecto: `max`). Opciones disponibles: `[max|1080p|720p|480p|360p|min]`.
+- `--quality`, `-q`: Especifica la calidad del video (por defecto: `1080`). Opciones disponibles: `[best|1080|720|480|360|worst]`.
 - `--override`, `-w`: Sobrescribe el archivo existente si existe (por defecto: `False`).
 - `--threads`, `-t`: Número de hilos a utilizar (por defecto: `10`).
 
@@ -221,22 +261,22 @@ Opciones:
 
 Ejemplos:
 
-**Descargar un bootcamp completo:**
-
-```console
-facilito download https://codigofacilito.com/programas/ingles-conversacional
-```
-
 **Descargar un curso:**
 
 ```console
 facilito download https://codigofacilito.com/cursos/docker
 ```
 
+**Descargar un bootcamp:**
+
+```console
+facilito download https://codigofacilito.com/programas/ingles-conversacional
+```
+
 **Descargar con opciones personalizadas:**
 
 ```console
-facilito download URL -q 720p -t 5
+facilito download URL -q 720 -t 5
 ```
 
 > [!IMPORTANT]
@@ -245,7 +285,7 @@ facilito download URL -q 720p -t 5
 <br>
 
 > [!IMPORTANT]
-> El script utiliza **_`ffmpeg`_**, como un subproceso, así que asegúrate de tener instalado y actualizado.
+> El script utiliza **_`yt-dlp`_** y **_`ffmpeg`_** como subprocesos, así que asegúrate de tenerlos instalados y actualizados.
 
 <br>
 
@@ -254,8 +294,47 @@ facilito download URL -q 720p -t 5
 
 <br>
 
-> [!NOTE]
-> La versión actual es inestable y puede contener errores. Si necesitas una versión más estable, considera usar la versión anterior [**_[VER]_**][previous-version].
+> [!INFO]
+> Para **cursos** y **bootcamps**, el downloader guarda un archivo `.json` con la estructura descargada. En ejecuciones posteriores,
+> si detecta un **cache hit**, puede saltarse el scraping web y continuar usando el JSON local.
+
+## Estructura de salida
+
+Dependiendo del tipo de recurso, la estructura de carpetas generada será similar a:
+
+### Cursos
+
+```text
+Facilito/
+└── Nombre del Curso/
+    ├── Nombre del Curso.json
+    ├── source.mhtml
+    ├── 01 - Módulo 1/
+    │   ├── 01 - Introducción.mhtml
+    │   ├── 02 - Bienvenida.mp4
+    │   └── ...
+    ├── 02 - Módulo 2/
+    │   └── ...
+    └── ...
+```
+
+### Bootcamps
+
+```text
+Facilito/
+└── Nombre del Bootcamp/
+    ├── Nombre del Bootcamp.json
+    ├── source.mhtml
+    ├── 01 - Módulo 1/
+    │   ├── 1.1 Introducción.mp4
+    │   ├── 1.2 Presentación.mhtml
+    │   └── ...
+    ├── 02 - Módulo 2/
+    │   └── ...
+    └── ...
+```
+
+Los nombres de carpetas y archivos se limpian automáticamente para evitar caracteres inválidos en el sistema de archivos.
 
 ## Cómo contribuir
 
