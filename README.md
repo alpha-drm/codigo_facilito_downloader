@@ -1,9 +1,9 @@
 <!-- markdownlint-disable MD033 MD036 MD041 MD045 MD046 -->
 <div align="center">
-    <img width="150" src="https://i.imgur.com/dca7pcI.png" alt="Coco Logo">
+    <img width="100" src="https://i.imgur.com/dca7pcI.png" alt="Coco Logo">
 </div>
 <div align="center">
-    <img width="350" src="https://i.imgur.com/tZhUf6Y.png" alt="Coco Logo">
+    <img width="250" src="https://i.imgur.com/tZhUf6Y.png" alt="Coco Logo">
 </div>
 <div align="center">
 
@@ -27,34 +27,90 @@ con un script creado con **_`Python`_** y **_`Playwright`_**.
 
 ---
 
-![coco-banner](https://github.com/user-attachments/assets/7c85e908-fd19-4db9-b57c-55c56d183335)
+<div align="center">
+    
+![demo](https://github.com/user-attachments/assets/21255d4e-24b4-407a-bcc6-252d7a0b2d56)
 
-> [!NOTE]  
-> La versión actual incluye una experiencia de CLI mejorada con barras de progreso, paneles y tablas usando **Rich**.
+</div>
 
-## TODO
+## Características Principales
 
-¡Contribuciones son bienvenidas!
+- Interfaz de Terminal Moderna: Visualización en tiempo real con barras de progreso, tablas y paneles informativos.
+- Descarga Estructurada: Organización automática del contenido por módulos y lecciones.
+- Caché Inteligente: Reanudación de descargas mediante almacenamiento de la estructura en .json.
+- Ejecución Concurrente: Descargas más rápidas usando múltiples hilos.
+- Calidad de Video Configurable: Soporte para 1080p, 720p, 480p y 360p.
+- Formatos Estándar: Exportación en .mp4 y .mhtml para uso offline.
+- Autenticación Flexible: Inicio de sesión por credenciales o cookies.
 
-- [ ] Improve documentation
-- [x] Implement rich progress bar for downloads
-- [ ] Improve error handling
-- [ ] Write tests
+## Dependencias del sistema (requeridas)
+
+Este proyecto usa herramientas externas para descargar y procesar los videos.
+Asegúrate de tener **`yt-dlp`** y **`ffmpeg`** instalados y disponibles en tu `PATH`.
+
+### yt-dlp Instalación
+
+#### Windows
+
+Puedes descargar la versión de `yt-dlp` para Windows desde [aquí](https://github.com/yt-dlp/yt-dlp/releases). o algún gestor de paquetes como [`Scoop`][scoop] o [`Chocolatey`][chocolatey].
+
+```console
+scoop install yt-dlp
+```
+
+```console
+choco install yt-dlp
+```
+
+#### Linux / macOS (pipx / pip)
+
+```console
+pipx install yt-dlp
+# o, si no usas pipx:
+pip install -U yt-dlp
+```
+
+Mientras el comando `yt-dlp` esté disponible en tu `PATH`, el downloader podrá usarlo sin problemas.
+
+### FFmpeg Instalación
+
+#### Windows [[Tutorial]][ffmpeg-youtube]
+
+Puedes descargar la versión de `ffmpeg` para Windows desde [aquí][ffmpeg]. o algún gestor de paquetes como [`Scoop`][scoop] o [`Chocolatey`][chocolatey].
+
+```console
+scoop install ffmpeg
+```
+
+#### Ubuntu / Debian
+
+```console
+sudo apt install ffmpeg -y
+```
+
+#### Arch Linux
+
+```console
+sudo pacman -S ffmpeg
+```
 
 ## Instalación | Actualización
 
 ### Con **`poetry`** **(recomendado)**
 
+> [!TIP]
+> La forma recomendada y moderna de instalar Poetry es usando **`pipx`**. Si no lo tienes, instálalo de acuerdo a tu sistema [aquí](https://pipx.pypa.io/stable/installation/)
+
 <details>
 
 <summary>Instrucciones</summary>
 
-## Instalación
+### Instalación
 
 1. Instala `poetry` en tu sistema:
 
    ```console
-   pip install poetry
+   pipx install poetry
    ```
 
 2. Clona el repositorio:
@@ -81,7 +137,7 @@ con un script creado con **_`Python`_** y **_`Playwright`_**.
    poetry run playwright install chromium
    ```
 
-## Actualización
+### Actualización
 
 1. Entra al directorio del repositorio:
 
@@ -134,71 +190,6 @@ con un script creado con **_`Python`_** y **_`Playwright`_**.
 
 <br>
 
-<details>
-
-<summary>Tips & Tricks</summary>
-
-## Dependencias del sistema (requeridas)
-
-Este proyecto usa herramientas externas para descargar y procesar video:
-
-- **`yt-dlp`**: descarga del stream y unión de fragmentos.
-- **`ffmpeg`**: escritura de metadata en el `.mp4` (y utilidades de contenedor).
-
-> [!IMPORTANT]
-> Asegúrate de que **`yt-dlp`** y **`ffmpeg`** estén instalados y disponibles en tu `PATH`.
-> El comando `facilito download ...` valida esto antes de iniciar la descarga.
-
-### FFmpeg Instalación
-
-### Ubuntu / Debian
-
-```console
-sudo apt install ffmpeg -y
-```
-
-### Arch Linux
-
-```console
-sudo pacman -S ffmpeg
-```
-
-### Windows [[Tutorial]][ffmpeg-youtube]
-
-Puedes descargar la versión de `ffmpeg` para Windows desde [aquí][ffmpeg]. o algún gestor de paquetes como [`Scoop`][scoop] o [`Chocolatey`][chocolatey].
-
-```console
-scoop install ffmpeg
-```
-
-### yt-dlp Instalación
-
-La forma más sencilla y aislada suele ser usar el **binario oficial** o un gestor de paquetes del sistema:
-
-#### Windows (Scoop)
-
-```console
-scoop install yt-dlp
-```
-
-#### Windows (Chocolatey)
-
-```console
-choco install yt-dlp
-```
-
-#### Linux / macOS (pipx / pip)
-
-```console
-pipx install yt-dlp
-# o, si no usas pipx:
-pip install -U yt-dlp
-```
-
-Mientras el comando `yt-dlp` esté disponible en tu `PATH`, el downloader podrá usarlo sin problemas.
-
-</details>
-
 ## Guía de uso
 
 El `CLI` proporciona los siguientes comandos:
@@ -227,8 +218,8 @@ facilito set-cookies path/to/cookies.json
 
 ## Exportar las cookies
 
-1. Instala alguna extensión como **_`GetCookies`_** o **_`Cookie-Editor`_**
-2. Inicia sesión en tu navegador de tu preferencia.
+1. Inicia sesión en tu navegador de tu preferencia.
+2. Instala alguna extensión como **_`GetCookies`_** o **_`Cookie-Editor`_**
 3. Recarga la página.
 4. Exporta las cookies en formato `json` desde la extensión.
 
@@ -243,6 +234,9 @@ facilito logout
 ```
 
 ### Descargar
+
+> [!IMPORTANT]
+> Asegúrate de estar logueado antes de intentar descargar los cursos.
 
 Descarga un **curso** o **bootcamp** completo.
 
@@ -279,23 +273,13 @@ facilito download https://codigofacilito.com/programas/ingles-conversacional
 facilito download URL -q 720 -t 5
 ```
 
-> [!IMPORTANT]
-> Asegúrate de estar logueado antes de intentar descargar los cursos.
-
-<br>
-
-> [!IMPORTANT]
-> El script utiliza **_`yt-dlp`_** y **_`ffmpeg`_** como subprocesos, así que asegúrate de tenerlos instalados y actualizados.
-
 <br>
 
 > [!TIP]
 > Si por algún motivo se cancela la descarga, vuelve a ejecutar `facilito download <url>` para retomar la descarga.
 
-<br>
-
-> [!INFO]
-> Para **cursos** y **bootcamps**, el downloader guarda un archivo `.json` con la estructura descargada. En ejecuciones posteriores,
+> [!NOTE]
+> Para **cursos** y **bootcamps**, el downloader guarda la estructura de los mismos en un archivo `.json`. En ejecuciones posteriores,
 > si detecta un **cache hit**, puede saltarse el scraping web y continuar usando el JSON local.
 
 ## Estructura de salida
@@ -336,6 +320,15 @@ Facilito/
 
 Los nombres de carpetas y archivos se limpian automáticamente para evitar caracteres inválidos en el sistema de archivos.
 
+## TODO
+
+¡Contribuciones son bienvenidas!
+
+- [ ] Improve documentation
+- [x] Implement rich progress bar for downloads
+- [ ] Improve error handling
+- [ ] Write tests
+
 ## Cómo contribuir
 
 ¡Todas las contribuciones son bienvenidas!. Antes de enviar cambios, revisa la guía [CONTRIBUTING.md](./CONTRIBUTING.md) para conocer las pautas del proyecto.
@@ -346,13 +339,17 @@ Los nombres de carpetas y archivos se limpian automáticamente para evitar carac
   <img src="https://contrib.rocks/image?repo=ivansaul/codigo_facilito_downloader" />
 </a>
 
-# **Aviso de Uso**
+## License
+
+Distribuido bajo la Licencia MIT. Consulta el archivo [LICENSE](./LICENSE) para más información.
+
+## **Aviso de Uso**
 
 Este proyecto se realiza con fines exclusivamente educativos y de aprendizaje. El código proporcionado se ofrece "tal cual" sin ninguna garantía de su funcionamiento o idoneidad para ningún propósito específico.
 
 No me hago responsable por cualquier mal uso, daño o consecuencia que pueda surgir del uso de este proyecto. Es responsabilidad del usuario utilizarlo de manera adecuada y dentro de los límites legales y éticos.
 
-# Descubre Más
+## Descubre Más
 
 Aquí tienes una lista de algunos de mis otros repositorios. ¡Échales un vistazo!
 
