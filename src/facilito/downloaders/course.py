@@ -56,30 +56,32 @@ async def download_course(context: BrowserContext, course: Course, **kwargs) -> 
     if override or not source_path.exists():
         await save_page(context, course.url, source_path)
 
-        # --- Course Details Table ---
-        table = Table(
-            title=course.name,
-            border_style="cyan",
-            caption="processing...",
-            caption_style="green",
-            title_style="green",
-            header_style="green",
-            footer_style="green",
-            show_footer=True,
-            box=box.ROUNDED,
-        )
-        table.add_column("Modules", style="green", footer="Total", no_wrap=True)
-        table.add_column("Lessons", style="green", footer="0", justify="center")
+    # --- Course Details Table ---
+    table = Table(
+        title=course.name,
+        border_style="cyan",
+        caption="processing...",
+        caption_style="green",
+        title_style="green",
+        header_style="green",
+        footer_style="green",
+        show_footer=True,
+        box=box.ROUNDED,
+    )
+    table.add_column("Modules", style="green", footer="Total", no_wrap=True)
+    table.add_column("Lessons", style="green", footer="0", justify="center")
 
-        total_units = 0
+    total_units = 0
 
-        with Live(Align.left(table), refresh_per_second=4):
-            for idx, section in enumerate(course.chapters, 1):
-                time.sleep(0.3)  # arbitrary delay
-                num_units = len(section.units)
-                total_units += num_units
-                table.add_row(f"{idx} - {section.name}", str(len(section.units)))
-                table.columns[1].footer = str(total_units)  # Update footer dynamically
+    with Live(Align.left(table), refresh_per_second=4):
+        for idx, section in enumerate(course.chapters, 1):
+            time.sleep(0.3)  # arbitrary delay
+            num_units = len(section.units)
+            total_units += num_units
+            table.add_row(f"{idx} - {section.name}", str(len(section.units)))
+            table.columns[1].footer = str(total_units)  # Update footer dynamically
+
+    print()
 
     console = Console()
     total_units = sum(len(chapter.units) for chapter in course.chapters)
@@ -94,7 +96,7 @@ async def download_course(context: BrowserContext, course: Course, **kwargs) -> 
             title=f"MODULE {idx}",
             style="green",
             border_style="cyan",
-            box=box.HORIZONTALS,
+            box=box.ROUNDED,
             expand=False,
         )
         console.print(Align.left(panel))
@@ -125,7 +127,7 @@ async def download_course(context: BrowserContext, course: Course, **kwargs) -> 
     console.print(
         Panel(
             Align.center("Download complete!"),
-            border_style="green",
+            border_style="cyan",
             style="bold green",
             expand=False,
         )
