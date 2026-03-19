@@ -166,29 +166,39 @@ class AsyncFacilito:
             )
 
         elif is_course(url):
-            console.print(f"\n[cyan]>>> Checking local cache for:[/] {url}")
+            logger.info(f"[cyan]Checking local cache for:[/] {url}")
             course = get_cached_course(url)
 
             if course:
-                console.print("[green]>>> Cache hit. Skipping web scraping.[/]\n")
+                logger.info("[green]Cache hit. Skipping web scraping.[/]\n")
             else:
-                console.print(
-                    "[yellow]>>> No local cache. Fetching structure from web...[/]\n"
-                )
-                course = await self.fetch_course(url)
+                with console.status(
+                    "[yellow]No local cache. Fetching structure from web...[/]\n",
+                    spinner="bouncingBar",
+                    spinner_style="yellow",
+                ):
+                    course = await self.fetch_course(url)
+
+                logger.info("[green]Scraping complete!\n")
 
             await download_course(self.context, course, **kwargs)
 
         elif is_bootcamp(url):
-            console.print(f"\n[cyan]>>> Checking local cache for:[/] {url}")
+            logger.info(f"[cyan]Checking local cache for:[/] {url}")
             bootcamp = get_cached_bootcamp(url)
+
             if bootcamp:
-                console.print("[green]>>> Cache hit. Skipping web scraping.[/]\n")
+                logger.info("[green]Cache hit. Skipping web scraping.[/]\n")
             else:
-                console.print(
-                    "[yellow]>>> No local cache. Fetching structure from web...[/]\n"
-                )
-                bootcamp = await self.fetch_bootcamp(url)
+                with console.status(
+                    "[yellow]No local cache. Fetching structure from web...[/]\n",
+                    spinner="bouncingBar",
+                    spinner_style="yellow",
+                ):
+                    bootcamp = await self.fetch_bootcamp(url)
+
+                logger.info("[green]Scraping complete!\n")
+
             await download_bootcamp(self.context, bootcamp, **kwargs)
 
         else:
