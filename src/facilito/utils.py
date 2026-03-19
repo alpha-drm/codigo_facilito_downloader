@@ -105,46 +105,64 @@ async def open_accordions(page: Page) -> None:
 
 @try_except_request
 async def save_page(
-    context: BrowserContext, src: str | Page, path: str | Path = "source.mhtml"
+    context: BrowserContext,
+    src: str | Page,
+    path: str | Path = "source.mhtml",
+    **kwargs,
 ) -> None:
     """Save a page as MHTML: scroll, expand accordions, then capture snapshot.
     Accepts URL (str) or Page."""
     EXCEPTION = Exception(f"Error saving page as mhtml {path}")
 
+    progress_str = kwargs.get("progress_str", "")
+    prefix = progress_str if progress_str else ""
+    override = kwargs.get("override", False)
+
+    if not override and path.exists():
+        logger.info("[green][%s][%s] already exists.[/]", prefix, path.name)
+        return
+
     try:
-        if isinstance(src, str):
-            page = await context.new_page()
-            await page.goto(src, wait_until="networkidle")
-        else:
-            page = src
+        console = Console()
+        with console.status(
+            "[green]Saving page...[/]\n", spinner="bouncingBar", spinner_style="green"
+        ):
+            if isinstance(src, str):
+                page = await context.new_page()
+                await page.goto(src, wait_until="networkidle")
+            else:
+                page = src
 
-        await page.wait_for_timeout(2000)
-        await progressive_scroll(page)
-        await open_accordions(page)
-        await page.wait_for_timeout(1000)
+            await page.wait_for_timeout(2000)
+            await progressive_scroll(page)
+            await open_accordions(page)
+            await page.wait_for_timeout(1000)
 
-        # Fix Material Icons
-        await page.evaluate("""
-            document.querySelectorAll('.material-icons').forEach(el => {
-                const icon = el.textContent.trim();
+            # Fix Material Icons
+            await page.evaluate("""
+                document.querySelectorAll('.material-icons').forEach(el => {
+                    const icon = el.textContent.trim();
 
-                if (icon === 'done_all') {
-                    el.textContent = '✔✔';
-                    el.style.fontFamily = 'inherit';
-                    el.style.fontSize = '16px';
-                } else {
-                    el.textContent = '';
-                }
-            });
-        """)
+                    if (icon === 'done_all') {
+                        el.textContent = '✔✔';
+                        el.style.fontFamily = 'inherit';
+                        el.style.fontSize = '16px';
+                    } else {
+                        el.textContent = '';
+                    }
+                });
+            """)
 
-        await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(3000)
 
-        client = await page.context.new_cdp_session(page)
-        response = await client.send("Page.captureSnapshot")
+            client = await page.context.new_cdp_session(page)
+            response = await client.send("Page.captureSnapshot")
 
-        with open(path, "w", encoding="utf-8", newline="\n") as file:
-            file.write(response["data"])
+            with open(path, "w", encoding="utf-8", newline="\n") as file:
+                file.write(response["data"])
+
+        if prefix:
+            logger.info(f"[green][{prefix}][{path.name}] >>> Done!")
 
     except Exception:
         raise EXCEPTION
