@@ -69,19 +69,20 @@ async def download_bootcamp(
     if override or not source_path.exists():
         await save_page(context, bootcamp.url, source_path)
 
-        # --- Course Details Tree ---
-        console = Console()
+    # --- Course Details Tree ---
+    console = Console()
 
-        # Root node (bootcamp)
-        tree = Tree(f"[bold green]{bootcamp.name}[/bold green]")
+    # Root node (bootcamp)
+    tree = Tree(f"[bold green]{bootcamp.name}[/bold green]")
 
-        for idx, module in enumerate(bootcamp.modules, 1):
-            module_branch = tree.add(f"[green]{idx}- {module.name}[/green]")
-            for unit_idx, unit in enumerate(module.units, 1):
-                module_branch.add(f"{idx}.{unit_idx} {unit.name}")
+    for idx, module in enumerate(bootcamp.modules, 1):
+        module_branch = tree.add(f"[green]{idx}- {module.name}[/green]")
+        for unit_idx, unit in enumerate(module.units, 1):
+            module_branch.add(f"{idx}.{unit_idx} {unit.name}")
 
-        console.print(tree)
-        print()
+    console.print(tree)
+
+    print()
 
     console = Console()
     total_units = sum(len(chapter.units) for chapter in bootcamp.modules)
@@ -96,7 +97,7 @@ async def download_bootcamp(
             Align.center(f"{module.name}"),
             style="green",
             border_style="cyan",
-            box=box.HORIZONTALS,
+            box=box.ROUNDED,
             expand=False,
         )
         console.print(Align.left(panel))
@@ -121,6 +122,7 @@ async def download_bootcamp(
                     context,
                     unit,
                     MODULE_DIR_PATH / f"{jdx:02d} {unit.name}.mhtml",
+                    progress_str=progress_str,
                     **kwargs,
                 )
         print()
@@ -128,7 +130,7 @@ async def download_bootcamp(
     console.print(
         Panel(
             Align.center("Download complete!"),
-            border_style="green",
+            border_style="cyan",
             style="bold green",
             expand=False,
         )
