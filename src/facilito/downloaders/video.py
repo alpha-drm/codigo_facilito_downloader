@@ -139,7 +139,7 @@ async def download_video(
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if not override and path.exists():
-        logger.info("%s[%s] already exists", prefix, path.name)
+        logger.info("[green]%s[%s] already exists.[/]", prefix, path.name)
         return
 
     TMP_COOKIES_PATH = TMP_DIR_PATH / f"{hashify(url)}.json"
@@ -180,8 +180,11 @@ async def download_video(
         )
 
         progress = Progress(
-            TextColumn("[bold cyan]{task.description}"),
-            BarColumn(),
+            TextColumn("[cyan]{task.description}"),
+            BarColumn(
+                complete_style="bold green",
+                pulse_style="bold green",
+            ),
             TaskProgressColumn(),
             DownloadColumn(),
             TextColumn("[bold cyan]{task.fields[speed]}"),
