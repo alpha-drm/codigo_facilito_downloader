@@ -1,44 +1,35 @@
 import logging
 
-import colorlog
+from rich.logging import RichHandler
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-class CustomConsoleHandler(colorlog.StreamHandler):
-    """Console handler that strips exc_info from records so tracebacks
-    are not duplicated in console."""
-
-    def emit(self, record: logging.LogRecord) -> None:
-        # clone the record to avoid modifying the original
-        record_copy = logging.makeLogRecord(record.__dict__)
-        # remove exc_info from the copy
-        record_copy.exc_info = None
-        record_copy.exc_text = None
-        super().emit(record_copy)
-
-
-# --- Logger ---
-logger = colorlog.getLogger(__name__)
-logger.setLevel("DEBUG")
-
-# --- Console Handler ---
-console_formatter = colorlog.ColoredFormatter(
-    "{log_color}[{levelname}] {message}",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    style="{",
+# --- Rich Console Handler ---
+console_handler = RichHandler(
+    rich_tracebacks=True,
+    markup=True,
+    show_time=False,
+    show_level=False,
+    show_path=False,  # deleted async_api.py:
 )
-console_handler = CustomConsoleHandler()
-console_handler.setLevel("INFO")
-console_handler.setFormatter(console_formatter)
+console_handler.setLevel(logging.INFO)
+
+formatter = logging.Formatter("%(message)s")
+console_handler.setFormatter(formatter)
+
 logger.addHandler(console_handler)
 
 # --- File Handler ---
 log_file = "facilito.log"
+file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
+file_handler.setLevel(logging.DEBUG)
+
 file_formatter = logging.Formatter(
     "{asctime} [{levelname}] [{filename}:{funcName}:{lineno}] - {message}",
     datefmt="%Y-%m-%d %H:%M:%S",
     style="{",
 )
-file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
-file_handler.setLevel("DEBUG")
+
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
