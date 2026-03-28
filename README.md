@@ -18,6 +18,7 @@ con un script creado con **_`Python`_** y **_`Playwright`_**.
 ![GitHub stars](https://img.shields.io/github/stars/ivansaul/codigo_facilito_downloader)
 ![GitHub forks](https://img.shields.io/github/forks/ivansaul/codigo_facilito_downloader)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/alpha-drm/codigo_facilito_downloader)
 
 <a href="https://discord.gg/tDvybtJ7y9">
     <img alt="Discord Server" height="50" src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/social/discord-plural_vector.svg">
