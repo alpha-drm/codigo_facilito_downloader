@@ -117,7 +117,7 @@ sudo pacman -S ffmpeg
 2. Clona el repositorio:
 
    ```console
-   git clone https://github.com/ivansaul/codigo_facilito_downloader.git
+   git clone https://github.com/alpha-drm/codigo_facilito_downloader.git
    ```
 
 3. Entra al directorio del repositorio:
@@ -178,7 +178,7 @@ sudo pacman -S ffmpeg
 1. Instala el paquete:
 
    ```console
-   pip install -U git+https://github.com/ivansaul/codigo_facilito_downloader.git
+   pip install -U git+https://github.com/alpha-drm/codigo_facilito_downloader.git
    ```
 
 2. Instala las dependencias de `playwright`:
