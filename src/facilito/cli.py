@@ -99,6 +99,14 @@ def download(
             show_default=True,
         ),
     ] = 10,
+    headless: Annotated[
+        bool,
+        typer.Option(
+            "--headless/--no-headless",
+            help="Run the browser hidden (--headless: default) or visible (--no-headless).",  # noqa: E501
+            show_default=True,
+        ),
+    ] = True,
 ):
     """
     Download a bootcamp | course | video | lecture from the given URL.
@@ -131,29 +139,31 @@ def download(
             quality=quality,
             override=override,
             threads=threads,
+            headless=headless,
         )
     )
 
 
 async def _login() -> None:
     """Run login flow inside an AsyncFacilito context."""
-    async with AsyncFacilito() as client:
+    async with AsyncFacilito(headless=False) as client:
         await client.login()
 
 
 async def _logout() -> None:
     """Run logout (delete session) inside an AsyncFacilito context."""
-    async with AsyncFacilito() as client:
+    async with AsyncFacilito(headless=True) as client:
         await client.logout()
 
 
 async def _download(url: str, **kwargs) -> None:
     """Run download for the given URL inside an AsyncFacilito context."""
-    async with AsyncFacilito() as client:
+    headless = kwargs.pop("headless", True)
+    async with AsyncFacilito(headless=headless) as client:
         await client.download(url, **kwargs)
 
 
 async def _set_cookies(path: Path) -> None:
     """Load cookies from file and save state inside an AsyncFacilito context."""
-    async with AsyncFacilito() as client:
+    async with AsyncFacilito(headless=True) as client:
         await client.set_cookies(path)

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from playwright.async_api import BrowserContext, Page, async_playwright
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright_stealth import Stealth
 from rich.align import Align
 from rich.console import Console
@@ -30,30 +31,40 @@ class AsyncFacilito:
 
     Example
     -------
-    >>> async with AsyncFacilito(headless=False) as client:
+    >>> async with AsyncFacilito(headless=True) as client:
     ...     await client.login()
     ...     course = await client.fetch_course("https://codigofacilito.com/cursos/...")
     ...     await client.download("https://codigofacilito.com/cursos/...")
     """
 
-    def __init__(self, headless: bool = False) -> None:
+    def __init__(self, headless: bool = True) -> None:
         """
         Initialize the client.
 
         Parameters
         ----------
         headless : bool, optional
-            If True, run the browser in headless mode. Default is False.
+            If True, run the browser in headless mode. Default is True.
         """
         self.headless = headless
         self.authenticated = False
+        self._playwright = None
+        self._browser = None
+        self._context = None
 
     async def __aenter__(self) -> "AsyncFacilito":
         self._playwright = await async_playwright().start()
         self._browser = await self._playwright.chromium.launch(headless=self.headless)
+
+        user_agent = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
         self._context = await self._browser.new_context(
-            is_mobile=True,
+            user_agent=user_agent,
             java_script_enabled=True,
+            viewport={"width": 1280, "height": 800},
         )
 
         stealth = Stealth(init_scripts_only=True)
@@ -90,26 +101,26 @@ class AsyncFacilito:
         logger.info("You have to login manually, you have 2 minutes to do it")
 
         SELECTOR = "h1.h1.f-text-34"
+        page = await self.page
 
         try:
-            page = await self.page
-            await page.goto(LOGIN_URL)
+            await page.goto(LOGIN_URL, wait_until="domcontentloaded")
 
-            welcome_message = await page.wait_for_selector(
+            await page.wait_for_selector(
                 SELECTOR,
                 timeout=2 * 60 * 1000,
             )
-
-            if not welcome_message:
-                raise LoginError()
 
             self.authenticated = True
             await save_state(self.context, SESSION_FILE)
             logger.info("Logged in successfully")
 
-        except Exception:
+        except PlaywrightTimeoutError:
+            logger.error("Login timed out.")
+            raise LoginError("Login timed out.")
+        except Exception as e:
+            logger.error(f"Unexpected error during login: {e}")
             raise LoginError()
-
         finally:
             await page.close()
 
@@ -170,16 +181,16 @@ class AsyncFacilito:
             course = get_cached_course(url)
 
             if course:
-                logger.info("[green]Cache hit. Skipping web scraping.[/]\n")
+                logger.info("[green]Cache hit. Loading course data from cache[/]\n")
             else:
                 with console.status(
-                    "[yellow]No local cache. Fetching structure from web...[/]\n",
+                    "[yellow]No local cache. Fetching data from web...[/]\n",
                     spinner="bouncingBar",
                     spinner_style="yellow",
                 ):
                     course = await self.fetch_course(url)
 
-                logger.info("[green]Scraping complete!\n")
+                logger.info("[green]Data successfully saved to cache.\n")
 
             await download_course(self.context, course, **kwargs)
 
@@ -188,16 +199,16 @@ class AsyncFacilito:
             bootcamp = get_cached_bootcamp(url)
 
             if bootcamp:
-                logger.info("[green]Cache hit. Skipping web scraping.[/]\n")
+                logger.info("[green]Cache hit. Loading course data from cache.[/]\n")
             else:
                 with console.status(
-                    "[yellow]No local cache. Fetching structure from web...[/]\n",
+                    "[yellow]No local cache. Fetching data from web...[/]\n",
                     spinner="bouncingBar",
                     spinner_style="yellow",
                 ):
                     bootcamp = await self.fetch_bootcamp(url)
 
-                logger.info("[green]Scraping complete!\n")
+                logger.info("[green]Data successfully saved to cache.\n")
 
             await download_bootcamp(self.context, bootcamp, **kwargs)
 
@@ -221,8 +232,16 @@ class AsyncFacilito:
         """
         cookies = normalize_cookies(read_json(path))  # type: ignore
         await self.context.add_cookies(cookies)  # type: ignore
+
         await self._set_profile()
-        await save_state(self.context, SESSION_FILE)
+
+        if self.authenticated:
+            await save_state(self.context, SESSION_FILE)
+            logger.info("Cookies imported, Logged in successfully!\n")
+        else:
+            logger.error(
+                "Login failed. The cookies provided may be invalid or expired."
+            )
 
     @try_except_request
     async def _set_profile(self) -> None:
@@ -231,13 +250,14 @@ class AsyncFacilito:
         SELECTOR = "h1.h1.f-text-34"
         TIMEOUT = 5 * 1000
 
-        try:
-            page = await self.page
-            await page.goto(BASE_URL)
+        page = await self.page
 
-            welcome_message = await page.locator(SELECTOR).first.text_content(
-                timeout=TIMEOUT
-            )
+        try:
+            await page.goto(BASE_URL, wait_until="domcontentloaded")
+
+            await page.wait_for_selector(SELECTOR, timeout=TIMEOUT)
+
+            welcome_message = await page.locator(SELECTOR).first.text_content()
 
             if welcome_message:
                 self.authenticated = True
@@ -251,5 +271,9 @@ class AsyncFacilito:
                 console.print(Align.center(panel))
                 print()
 
+        except PlaywrightTimeoutError:
+            self.authenticated = False
         except Exception as e:
-            logger.error(e)
+            logger.debug(f"Could not fetch profile: {e}")
+        finally:
+            await page.close()
