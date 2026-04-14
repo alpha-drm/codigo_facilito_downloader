@@ -250,6 +250,8 @@ Opciones:
 - `--quality`, `-q`: Especifica la calidad del video (por defecto: `1080`). Opciones disponibles: `[best|1080|720|480|360|worst]`.
 - `--override`, `-w`: Sobrescribe el archivo existente si existe (por defecto: `False`).
 - `--threads`, `-t`: Número de hilos a utilizar (por defecto: `10`).
+- `--headless`: Ejecuta el navegador sin interfaz gráfica (Por defecto).
+- `--no-headless`: Ejecuta el navegador con interfaz gráfica. El inicio de sesión se realiza en un navegador visible de forma predeterminada.
 
 > [!TIP]
 > Para visualizar todas las opciones disponibles, ejecuta `facilito download --help`.
